@@ -35,7 +35,7 @@ for ii = 3:3
             % which files to be imported
             fname = [pname ' Scan ' num2str(jj) '.ang']; % later save name differently, _ instead of space, and make more concisely
             
-            % outname = [pname filesep 'Scan_' num2str(jj) 'new' '.mat'];
+            outname = [prefix filesep pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt} ' Scan_' num2str(jj) 'processed' '.mat'];
             %% Import the Data
             
             % create an EBSD variable containing the data
@@ -45,14 +45,14 @@ for ii = 3:3
             figure
             plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
 
-            [grains,ebsd.grainId] = calcGrains(ebsd,'angle',10*degree, 'minPixel',15);
+            [grains,ebsd.grainId] = calcGrains(ebsd,'angle',10*degree, 'minPixel',50);
             F = halfQuadraticFilter; % denoise
             F.alpha = 0.25;
             ebsd = smooth(ebsd,F,'fill',grains);
             % remove small grains and make them unindexed
             toRemove = grains.grainSize<15; 
             ebsd(grains(toRemove)) = 'notIndexed';
-            [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',15);
+            [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',50);
 
             % some of false grains appear inside unindexed region
             % better to avoid for loop later
@@ -65,23 +65,113 @@ for ii = 3:3
             ebsd(grains(falsegrains'==1)) = 'notIndexed';
             [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree);
             figure
-            plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
+            plot(ebsd,ebsd.orientations,'micronbar','off')
             figure
             plot(grains,'micronbar','off')
 
             % small points on scratches, filling them
-            toFlip = grains.grainSize<10 & grains.isIndexed==0; 
-            ebsd(grains(toFlip)).phaseId = 2;
-            ebsd(grains(toFlip)).phase = 0;
-            [grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',15);
+            % toFlip = grains.grainSize<50 & grains.isIndexed==0; 
+            % ebsd(grains(toFlip)).phaseId = 2;
+            % ebsd(grains(toFlip)).phase = 0;
+            % [grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',50);
             ebsd = smooth(ebsd,grains);
-            ebsd('notIndexed') = [];
             
             figure
-            plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
+            plot(ebsd,ebsd.orientations,'micronbar','off')
             figure
             plot(grains,'micronbar','off')
-    
+
+            % save processed data. once have, no need to run code above
+            save(outname,'ebsd','grains');
         end
     end
 end
+ebsd_raw = ebsd; % temporarily for coding
+%% Data analysis
+[grains_for_PP, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'unitCell'); % strategically have unindexed as phase for post data processing
+[grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd('indexed'),'unitCell');
+
+% Grain orientation spread. 
+gos = grains.GOS./degree;
+figure
+plot(grains,gos,'micronbar','off')
+setColorRange([0 8])
+
+% merge twins for fcc
+twinning = orientation('axis', Miller(1,1,1,ebsd.CS),'angle',60*degree,ebsd.CS)\orientation('euler',0,0,0,ebsd.CS);
+gB = grains.boundary;
+isTwinning = angle(gB.misorientation,twinning) < 8.86*degree;
+twinBoundary = gB(isTwinning);
+[mergedGrains,parentId] = merge(grains('indexed'),ebsd,twinning);
+figure
+plot(grains,grains.meanOrientation)
+hold on
+plot(twinBoundary,'lineWidth',2,'lineColor','w')
+hold off
+% exclude grains not fully inside scanned region
+% outerBoundaries_id = any(mergedGrains.boundary.grainId==0,2); % exclude grains not fully inside scanned region
+% grains_exclude_id = mergedGrains.boundary(outerBoundaries_id).grainId;
+% grains_exclude_id(grains_exclude_id==0) = [];
+% mergedGrains(grains_exclude_id) = [];
+
+% Equivalent grain diameter
+grain_diameter = 2.*equivalentRadius(mergedGrains);
+figure
+plot(mergedGrains,mergedGrains.meanOrientation,'micronbar','off')
+figure
+boxplot(grain_diameter)
+ylabel('Grain equivalent diameter \mum')
+PrettyPlotsSingle
+
+% Grain shape
+ShapeFactor = grains.shapeFactor;
+figure
+plot(grains,ShapeFactor)
+setColorRange([0 3])
+
+%% Pole figures for texture analysis
+CS = ebsd.CS;
+odf = calcDensity(ebsd('Face Centered Cubic').orientations);
+
+% change direction to have build direction upward later
+plotx2east;
+plotzIntoPlane;
+
+setMTEXpref('FontSize',40)
+pfAnnotations = @(varargin) text([vector3d.X,-vector3d.Y], {'', ''},...% put RD ND TD you want for X and Y
+    'BackgroundColor', 'w', 'FontSize',32, 'tag', 'axesLabels', varargin{:});
+setMTEXpref('pfAnnotations', pfAnnotations);
+
+
+pt = 2;
+pos_name = {'ND_Offset', 'Center', 'TD_Offset', 'RD_Offset'};
+
+figure
+plotPDF(odf, Miller({1,0,0},CS),'antipodal','projection','eangle');
+plotPDF(odf, Miller({1,0,0},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
+mtexColorMap parula
+setColorRange([0 2])
+mtexColorbar
+
+figure
+plotPDF(odf, Miller({1,1,0},CS),'antipodal','projection','eangle');
+plotPDF(odf, Miller({1,1,0},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
+mtexColorMap parula
+setColorRange([0 2])
+mtexColorbar
+
+figure
+plotPDF(odf, Miller({1,1,1},CS),'antipodal','projection','eangle');
+plotPDF(odf, Miller({1,1,1},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
+mtexColorMap parula
+setColorRange([0 2])
+mtexColorbar
+
+%% Grains near defects
+defect_id = grains_for_PP.isIndexed==0 & grains_for_PP.grainSize > 100;
+defect_grains = grains_for_PP(defect_id);
+figure
+plot(grains_for_PP,grains_for_PP.meanOrientation,'micronbar','off')
+hold on
+plot(defect_grains.boundary,'linewidth',2)
+hold off
