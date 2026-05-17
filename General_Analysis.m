@@ -20,12 +20,12 @@ pname_sub_subroot = {'XY',...
 
 % loop over deformation levels
 for ii = 3:3
-    for tt = 1:1
+    for tt = 2:2
 
         pname = [prefix filesep '05.13.26 PermAlloy As-Built ' pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt}]; 
         
         % loop over quads
-        for jj = 1:1
+        for jj = 4:4
         
         
             %% Specify File Names
@@ -40,10 +40,14 @@ for ii = 3:3
             
             % create an EBSD variable containing the data
             ebsd = EBSD.load(fname,CS,'interface','ang',...
-              'convertEuler2SpatialReferenceFrame','setting 3'); % setting 3 to rotate 90
+              'convertEuler2SpatialReferenceFrame','setting 2'); 
+            ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotate to have build direction aligned y-axis
             ebsd_raw = ebsd;
             figure
             plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
+            figure
+            plot(ebsd_raw,ebsd_raw.prop.iq,'micronbar','off')
+            colormap('gray')
 
             [grains,ebsd.grainId] = calcGrains(ebsd,'angle',10*degree, 'minPixel',50);
             F = halfQuadraticFilter; % denoise
@@ -68,13 +72,6 @@ for ii = 3:3
             plot(ebsd,ebsd.orientations,'micronbar','off')
             figure
             plot(grains,'micronbar','off')
-
-            % small points on scratches, filling them
-            % toFlip = grains.grainSize<50 & grains.isIndexed==0; 
-            % ebsd(grains(toFlip)).phaseId = 2;
-            % ebsd(grains(toFlip)).phase = 0;
-            % [grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',50);
-            ebsd = smooth(ebsd,grains);
             
             figure
             plot(ebsd,ebsd.orientations,'micronbar','off')
@@ -134,8 +131,8 @@ CS = ebsd.CS;
 odf = calcDensity(ebsd('Face Centered Cubic').orientations);
 
 % change direction to have build direction upward later
-plotx2east;
-plotzIntoPlane;
+% plotx2east;
+% plotzIntoPlane;
 
 setMTEXpref('FontSize',40)
 pfAnnotations = @(varargin) text([vector3d.X,-vector3d.Y], {'', ''},...% put RD ND TD you want for X and Y
