@@ -1,8 +1,8 @@
 %% UCF Collab EBSD Analysis
 
 % Add path to Monster Utilities
-addpath 'C:\Users\leey2\Documents\GitHub\EBSD-EDS-combination'
-addpath 'C:\Users\leey2\Documents\HeRX-utilities'
+% addpath 'C:\Users\leey2\Documents\GitHub\EBSD-EDS-combination'
+% addpath 'C:\Users\leey2\Documents\HeRX-utilities'
 
 % crystal symmetry
 CS = {... 
@@ -25,7 +25,7 @@ for ii = 3:3
         pname = [prefix filesep '05.13.26 PermAlloy As-Built ' pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt}]; 
         
         % loop over quads
-        for jj = 2:2
+        for jj = 1:1
         
         
             %% Specify File Names
@@ -191,5 +191,3 @@ plot(grains_for_PP,grains_for_PP.meanOrientation,'micronbar','off')
 hold on
 plot(defect_grains.boundary,'linewidth',2)
 hold off
-
-megan is short
