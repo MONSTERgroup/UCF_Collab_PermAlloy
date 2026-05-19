@@ -20,12 +20,12 @@ pname_sub_subroot = {'XY',...
 
 % loop over deformation levels
 for ii = 3:3
-    for tt = 2:2
+    for tt = 1:1
 
         pname = [prefix filesep '05.13.26 PermAlloy As-Built ' pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt}]; 
         
         % loop over quads
-        for jj = 4:4
+        for jj = 2:2
         
         
             %% Specify File Names
@@ -93,6 +93,25 @@ gos = grains.GOS./degree;
 figure
 plot(grains,gos,'micronbar','off')
 setColorRange([0 8])
+
+fraction = 0.4;
+numPoints = round(fraction*length(gos));
+Ran_GOS_id = randperm(length(gos),numPoints);
+dilutedGOS = gos(Ran_GOS_id);
+
+figure
+h = daviolinplot(dilutedGOS,'box',0,...
+'boxcolor','w','scatter',2,'jitter',1,'scattercolor',[0.98, 0.40, 0.35],'colors',[0.98, 0.40, 0.35],...
+'scattersize',2,'scatteralpha',0.7,'linkline',1,'outliers',0,...
+'xtlabels', ' '); 
+ylabel('GOS (\circ)');
+xlabel(' ')
+ylim([0 8])
+xl = xlim; xlim([xl(1)-0.1, xl(2)+0.4]); % make more space for the legend
+set(h.sc,'MarkerEdgeColor','none');      % remove marker edge color
+set(gca,'FontSize',12);
+set(gca,'Box','on')
+set(gca, 'LineWidth', 2)
 
 % merge twins for fcc
 twinning = orientation('axis', Miller(1,1,1,ebsd.CS),'angle',60*degree,ebsd.CS)\orientation('euler',0,0,0,ebsd.CS);
