@@ -1,25 +1,14 @@
 %% UCF Collab EBSD Analysis
 
-<<<<<<< HEAD
-% Setting up MTEX related info for plotting
-plotx2east
-setMTEXpref('xAxisDirection','east');
-setMTEXpref('zAxisDirection','intoPlane');
-setMTEXpref('FontSize',14);
-=======
 % Add path to Monster Utilities
 % addpath 'C:\Users\leey2\Documents\GitHub\EBSD-EDS-combination'
 % addpath 'C:\Users\leey2\Documents\HeRX-utilities'
->>>>>>> 9b347aabc59a987e1c3fdb59b807f1d6b922f579
 
 % crystal symmetry
 CS = {... 
   'notIndexed',...
   crystalSymmetry('432', [4 4 4], 'mineral', 'Face Centered Cubic', 'color', [0.53 0.81 0.98])};
 
-csNotIndex = CS{1}.Laue;
-csFCC = CS{2}.Laue;
-%%
 prefix = 'C:\Users\leey2\University of Florida\MONSTER group - Documents\Lab Data\AM PermAlloy (UCF Collab)\Test_run';  
 
 pname_subroot = {'400',...
@@ -201,8 +190,4 @@ figure
 plot(grains_for_PP,grains_for_PP.meanOrientation,'micronbar','off')
 hold on
 plot(defect_grains.boundary,'linewidth',2)
-<<<<<<< HEAD
 hold off
-=======
-hold off
->>>>>>> 9b347aabc59a987e1c3fdb59b807f1d6b922f579
