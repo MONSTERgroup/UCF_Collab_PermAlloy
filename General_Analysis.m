@@ -14,126 +14,147 @@ CS = {...
   crystalSymmetry('432', [4 4 4], 'mineral', 'Face Centered Cubic', 'color', [0.53 0.81 0.98])};
 csFCC = CS{2}.Laue;
 
-% extracting all relevant ebsd information
-folder = pwd; % should be in folder with all the .ang files
-addpath(genpath(folder))
+% extracting all relevant files
+pname = pwd; % should be in folder with all the .ang files
+addpath(genpath(pname))
 
-listing = dir(fullfile(folder, '*.ang'));
-tbl = struct2table(listing);
-tbl.date = datetime(tbl.datenum, 'ConvertFrom', 'datenum');
-tbl = removevars(tbl, "datenum");
-allFiles = tbl.name;
+angFiles = dir(fullfile(pname,'*.ang'));
+allFiles = {angFiles.name}';
+allAngBases   = cellfun(@(n) erase(n,'.ang'),allFiles,'UniformOutput',false);
 
-% Seperating files based on their condition
-files_AsBuilt = {};
-files_HIP = {};
+matFiles = dir(fullfile(pname,'*.mat'));
+matNames = {matFiles.name}';
+allMatBases = cellfun(@(n) erase(n,'processed.mat'),matNames,'UniformOutput',false);
+
+% storing relevant info for later processing/analysis
+allFileInfo = {};
 
 for i = 1:length(allFiles)
-    trimmed = regexprep(allFiles{i}, '^\d{2}[\.-]\d{2}[\.-]\d{2}\s*', '');
+    trimmed  = regexprep(allFiles{i}, '^\d{2}[\.-]\d{2}[\.-]\d{2}\s*', '');
     samp_name = regexprep(trimmed, '^[^\s]+\s+', '');
-    samp_name = regexprep(samp_name, '\s')
+    samp_name = erase(samp_name, '.ang');
     firstPortion = extractBefore(samp_name, ' ');
 
     match = regexp(samp_name, ...
         '(?<params>\d+mms\s+\d+W)\s+(?<dir>[A-Z]{2})\s+Scan\s+(?<scan>\d+)', ...
         'names');
 
+    thisFile = struct( ...
+        'filename',        allFiles{i}, ...
+        'sampleName',      samp_name, ...
+        'sampleType',      firstPortion, ...
+        'buildParams',     match.params, ...
+        'buildDirection',  match.dir, ...
+        'scanNumber',      str2double(match.scan));
+
     if strcmpi(firstPortion, 'HIP')
         htInfo = regexp(samp_name, '(\d+)\s*min', 'tokens', 'once');
-        htDuration = str2double(htInfo{1}); 
-        files_HIP{end+1} = struct('filename', allFiles{i}, ...
-                           'sampleName',      samp_name, ...  
-                           'sampleType',      firstPortion, ...
-                           'buildParams',     match.params, ...
-                           'buildDirection',  match.dir, ...
-                           'scanNumber',      str2double(match.scan), ...
-                           'htDurationMin',   htDuration);
+        thisFile.htDurationMin = str2double(htInfo{1});
     else
-        files_AsBuilt{end+1} = struct('filename', allFiles{i}, ...
-                               'sampleName',      samp_name, ...  
-                               'sampleType',      firstPortion, ...
-                               'buildParams',     match.params, ...
-                               'buildDirection',  match.dir, ...
-                               'scanNumber',      str2double(match.scan));
+        thisFile.htDurationMin = [];   % empty for As-Built
     end
+
+    allFileInfo{end+1} = thisFile;
 end
 
-%%
-pname_subroot = {'400',...
-    '900',...
-    '1200'};
+% initial ebsd processing (only need to do once for each .ang file)
+for j = 1:numel(allAngBases)
+    if ismember(allAngBases{j}, allMatBases)
+        fprintf('Data has been processed already for %s. Skipping...\n', allFiles{j});
+    else
+        fname = [pname filesep allFiles{j}];
+        samp_name = allFileInfo{j}.sampleName;
 
-pname_sub_subroot = {'XY',...
-    'XZ'};
-
-% loop over deformation levels
-for ii = 3:3
-    for tt = 1:1
-
-        pname = [prefix filesep '05.13.26 PermAlloy As-Built ' pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt}]; 
-        
-        % loop over quads
-        for jj = 1:1
-        
-        
-            %% Specify File Names
-            
-            clear ebsd grains toRemove toFlip
-            
-            % which files to be imported
-            fname = [pname ' Scan ' num2str(jj) '.ang']; % later save name differently, _ instead of space, and make more concisely
-            
-            outname = [prefix filesep pname_subroot{ii} 'mms 200W ' pname_sub_subroot{tt} ' Scan_' num2str(jj) 'processed' '.mat'];
-            %% Import the Data
-            
-            % create an EBSD variable containing the data
-            ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
-            ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotate to have build direction aligned y-axis
-            ebsd_raw = ebsd;
-            figure
-            plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
-            figure
-            plot(ebsd_raw,ebsd_raw.prop.iq,'micronbar','off')
-            colormap('gray')
-
-            [grains,ebsd.grainId] = calcGrains(ebsd,'angle',10*degree, 'minPixel',50);
-            F = halfQuadraticFilter; % denoise
-            F.alpha = 0.25;
-            ebsd = smooth(ebsd,F,'fill',grains);
-            % remove small grains and make them unindexed
-            toRemove = grains.grainSize<15; 
-            ebsd(grains(toRemove)) = 'notIndexed';
-            [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',50);
-
-            % some of false grains appear inside unindexed region
-            % better to avoid for loop later
-            falsegrains = [];
-            for z = 1:length(grains)
-                tempId = grains(z).neighbors('full');
-                temp = height(tempId) == 1 && any(grains(tempId).isIndexed==0);
-                falsegrains(z) = temp;
-            end
-            ebsd(grains(falsegrains'==1)) = 'notIndexed';
-            [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree);
-            figure
-            plot(ebsd,ebsd.orientations,'micronbar','off')
-            figure
-            plot(grains,'micronbar','off')
-            
-            figure
-            plot(ebsd,ebsd.orientations,'micronbar','off')
-            figure
-            plot(grains,'micronbar','off')
-
-            % save processed data. once have, no need to run code above
-            save(outname,'ebsd','grains');
+        ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
+        if strcmpi(allFileInfo{j}.buildDirection, 'XZ')
+            ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotates build direction to align with y-axis
         end
+        ebsd_raw = ebsd; % making copy, just in case
+
+        % plotting pre-processed EBSD IPF and IQ maps
+        figure;
+        plot(ebsd,ebsd.orientations) %,'micronbar','off') Uncomment, if desired
+        export_fig(sprintf('%s %s.png', samp_name, ' rawEBSD_ipf'), '-m2');
+        close
+
+        figure;
+        plot(ebsd,ebsd.iq) %,'micronbar','off') Uncomment, if desired
+        colormap('gray')
+        export_fig(sprintf('%s %s.png', samp_name, ' rawEBSD_iq'), '-m2'); 
+        close
+
+        % calculating grain boundaries and removing defects
+        pointsToRemove = (ebsd.iq < (0.12*max(ebsd.iq)));
+        ebsd(pointsToRemove) = 'notIndexed';
+
+        [grains, ebsd.grainId] = calcGrains(ebsd,'angle', 10*degree, 'boundary', 'tight');
+        ebsd(grains(grains.grainSize < 3)) = [];
+        F = halfQuadraticFilter; % denoise
+        F.alpha = 0.25;
+        ebsd = smooth(ebsd,F,'fill',grains);
+        [grains, ebsd.grainId, ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'boundary', 'tight');
+        grains = smooth(grains, 5);
+
+        % plotting EBSD w/grain boundaries
+        figure;
+        plot(ebsd,ebsd.orientations)
+        hold on
+        plot(grains.boundary, 'lineWidth', 1)
+        export_fig(sprintf('%s %s.png', samp_name, ' EBSD wGBs'), '-m2'); 
+        close
+
+        % saving processed variables for later
+        save(samp_name,'ebsd','grains');
     end
 end
-ebsd_raw = ebsd; % temporarily for coding
+ 
+% NEEDED >> Add way to select specific sets of data and load in their .mat files
+
+%% Tony initial version - create an EBSD variable containing the data
+% ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
+% ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotate to have build direction aligned y-axis
+% ebsd_raw = ebsd;
+% figure
+% plot(ebsd_raw,ebsd_raw.orientations,'micronbar','off')
+% figure
+% plot(ebsd_raw,ebsd_raw.prop.iq,'micronbar','off')
+% colormap('gray')
+% 
+% [grains,ebsd.grainId] = calcGrains(ebsd,'angle',10*degree, 'minPixel',50);
+% F = halfQuadraticFilter; % denoise
+% F.alpha = 0.25;
+% ebsd = smooth(ebsd,F,'fill',grains);
+% % remove small grains and make them unindexed
+% toRemove = grains.grainSize<15; 
+% ebsd(grains(toRemove)) = 'notIndexed';
+% [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree, 'minPixel',50);
+% 
+% % some of false grains appear inside unindexed region
+% % better to avoid for loop later
+% falsegrains = [];
+% for z = 1:length(grains)
+%     tempId = grains(z).neighbors('full');
+%     temp = height(tempId) == 1 && any(grains(tempId).isIndexed==0);
+%     falsegrains(z) = temp;
+% end
+% ebsd(grains(falsegrains'==1)) = 'notIndexed';
+% [grains, ebsd.grainId,ebsd.mis2mean] = calcGrains(ebsd,'angle', 10*degree);
+% figure
+% plot(ebsd,ebsd.orientations,'micronbar','off')
+% figure
+% plot(grains,'micronbar','off')
+% 
+% figure
+% plot(ebsd,ebsd.orientations,'micronbar','off')
+% figure
+% plot(grains,'micronbar','off')
+% 
+% % save processed data. once have, no need to run code above
+% save(outname,'ebsd','grains');
+
 %% Data analysis
-[grains_for_PP, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'unitCell'); % strategically have unindexed as phase for post data processing
-[grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd('indexed'),'unitCell');
+% [grains_for_PP, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'unitCell'); % strategically have unindexed as phase for post data processing
+% [grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd('indexed'),'unitCell');
 
 % Grain orientation spread. 
 gos = grains.GOS./degree;
