@@ -1,27 +1,64 @@
 %% UCF Collab EBSD Analysis
 
-<<<<<<< HEAD
+clear; close all
+
 % Setting up MTEX related info for plotting
 plotx2east
 setMTEXpref('xAxisDirection','east');
 setMTEXpref('zAxisDirection','intoPlane');
 setMTEXpref('FontSize',14);
-=======
-% Add path to Monster Utilities
-% addpath 'C:\Users\leey2\Documents\GitHub\EBSD-EDS-combination'
-% addpath 'C:\Users\leey2\Documents\HeRX-utilities'
->>>>>>> 9b347aabc59a987e1c3fdb59b807f1d6b922f579
 
 % crystal symmetry
 CS = {... 
   'notIndexed',...
   crystalSymmetry('432', [4 4 4], 'mineral', 'Face Centered Cubic', 'color', [0.53 0.81 0.98])};
-
-csNotIndex = CS{1}.Laue;
 csFCC = CS{2}.Laue;
-%%
-prefix = 'C:\Users\leey2\University of Florida\MONSTER group - Documents\Lab Data\AM PermAlloy (UCF Collab)\Test_run';  
 
+% extracting all relevant ebsd information
+folder = pwd; % should be in folder with all the .ang files
+addpath(genpath(folder))
+
+listing = dir(fullfile(folder, '*.ang'));
+tbl = struct2table(listing);
+tbl.date = datetime(tbl.datenum, 'ConvertFrom', 'datenum');
+tbl = removevars(tbl, "datenum");
+allFiles = tbl.name;
+
+% Seperating files based on their condition
+files_AsBuilt = {};
+files_HIP = {};
+
+for i = 1:length(allFiles)
+    trimmed = regexprep(allFiles{i}, '^\d{2}[\.-]\d{2}[\.-]\d{2}\s*', '');
+    samp_name = regexprep(trimmed, '^[^\s]+\s+', '');
+    samp_name = regexprep(samp_name, '\s')
+    firstPortion = extractBefore(samp_name, ' ');
+
+    match = regexp(samp_name, ...
+        '(?<params>\d+mms\s+\d+W)\s+(?<dir>[A-Z]{2})\s+Scan\s+(?<scan>\d+)', ...
+        'names');
+
+    if strcmpi(firstPortion, 'HIP')
+        htInfo = regexp(samp_name, '(\d+)\s*min', 'tokens', 'once');
+        htDuration = str2double(htInfo{1}); 
+        files_HIP{end+1} = struct('filename', allFiles{i}, ...
+                           'sampleName',      samp_name, ...  
+                           'sampleType',      firstPortion, ...
+                           'buildParams',     match.params, ...
+                           'buildDirection',  match.dir, ...
+                           'scanNumber',      str2double(match.scan), ...
+                           'htDurationMin',   htDuration);
+    else
+        files_AsBuilt{end+1} = struct('filename', allFiles{i}, ...
+                               'sampleName',      samp_name, ...  
+                               'sampleType',      firstPortion, ...
+                               'buildParams',     match.params, ...
+                               'buildDirection',  match.dir, ...
+                               'scanNumber',      str2double(match.scan));
+    end
+end
+
+%%
 pname_subroot = {'400',...
     '900',...
     '1200'};
@@ -50,8 +87,7 @@ for ii = 3:3
             %% Import the Data
             
             % create an EBSD variable containing the data
-            ebsd = EBSD.load(fname,CS,'interface','ang',...
-              'convertEuler2SpatialReferenceFrame','setting 2'); 
+            ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
             ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotate to have build direction aligned y-axis
             ebsd_raw = ebsd;
             figure
