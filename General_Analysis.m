@@ -1,7 +1,6 @@
 %% UCF Collab EBSD Analysis
 
 clear; close all
-
 % Setting up MTEX related info for plotting
 plotx2east
 setMTEXpref('xAxisDirection','east');
@@ -18,6 +17,11 @@ csFCC = CS{2}.Laue;
 pname = pwd; % should be in folder with all the .ang files
 addpath(genpath(pname))
 
+imgPath = fullfile(pname, 'Images');
+if ~isfolder(imgPath)
+    mkdir(imgPath);
+end
+
 angFiles = dir(fullfile(pname,'*.ang'));
 allFiles = {angFiles.name}';
 
@@ -33,6 +37,7 @@ for i = 1:length(allFiles)
     samp_name = regexprep(trimmed, '^[^\s]+\s+', '');
     samp_name = erase(samp_name, '.ang');
     firstPortion = extractBefore(samp_name, ' ');
+    firstPortion = strrep(firstPortion,'-','');
 
     match = regexp(samp_name, ...
         '(?<params>\d+mms\s+\d+W)\s+(?<dir>[A-Z]{2})\s+Scan\s+(?<scan>\d+)', ...
@@ -73,13 +78,13 @@ for j = 1:numel(allFileInfo)
         % plotting pre-processed EBSD IPF and IQ maps
         figure;
         plot(ebsd,ebsd.orientations) %,'micronbar','off') Uncomment, if desired
-        export_fig(sprintf('%s %s.png', samp_name, ' rawEBSD_ipf'), '-m2');
+        export_fig(char(fullfile(imgPath, sprintf('%s %s.png', samp_name, ' rawEBSD_ipf'))), '-m2');
         close
 
         figure;
         plot(ebsd,ebsd.iq) %,'micronbar','off') Uncomment, if desired
         colormap('gray')
-        export_fig(sprintf('%s %s.png', samp_name, ' rawEBSD_iq'), '-m2'); 
+        export_fig(char(fullfile(imgPath, sprintf('%s %s.png', samp_name, ' rawEBSD_iq'))), '-m2'); 
         close
 
         % calculating grain boundaries and removing defects
@@ -99,7 +104,7 @@ for j = 1:numel(allFileInfo)
         plot(ebsd,ebsd.orientations)
         hold on
         plot(grains.boundary, 'lineWidth', 1)
-        export_fig(sprintf('%s %s.png', samp_name, ' EBSD wGBs'), '-m2'); 
+        export_fig(char(fullfile(imgPath, sprintf('%s %s.png', samp_name, ' EBSD wGBs'))), '-m2'); 
         close
 
         % saving processed variables for later
@@ -107,7 +112,8 @@ for j = 1:numel(allFileInfo)
     end
 end
 
-% Determining which .mat file(s) to load for plotting based on stated criteria
+% determining which .mat file(s) to load for plotting based on stated criteria
+% can add case "both" if desired for later comparison plots
 confirmSelection = false;
 while ~confirmSelection
     % Sample type
@@ -116,10 +122,10 @@ while ~confirmSelection
         sInput = input('Select a sample type (As‑Built/HIP): ','s');
         switch lower(strtrim(sInput))
             case {'as-built','asbuilt','as','built','1'}
-                sampleType = 'As‑Built';
+                sampType = 'AsBuilt';
                 validSample = true;
             case {'hip','heat','heated','2'}
-                sampleType = 'HIP';
+                sampType = 'HIP';
                 validSample = true;
             otherwise
                 fprintf('Please answer "As‑Built" or "HIP".\n');
@@ -128,20 +134,20 @@ while ~confirmSelection
     % Build parameters
     validParams = false; 
     while ~validParams
-        if strcmp(sampleType,'HIP') % update if more are considered
-            buildParams = '900mms 200W';
+        if strcmp(sampType,'HIP') % update if more are considered
+            buildParam = '900mms 200W';
             validParams = true;
         else
             sInput = input('Select build parameters (400, 900, or 1200mms): ','s');
             switch lower(strtrim(sInput))
                 case {'400','400mms','1'}
-                    buildParams = '400mms 200W';
+                    buildParam = '400mms 200W';
                     validParams = true;
                 case {'900','900mms','2'}
-                    buildParams = '900mms 200W';
+                    buildParam = '900mms 200W';
                     validParams = true;
                 case {'1200','1200mms','3'}
-                    buildParams = '1200mms 200W';
+                    buildParam = '1200mms 200W';
                     validParams = true;
                 otherwise
                     fprintf('Please answer either "400", "900", or "1200" mms.\n');
@@ -166,7 +172,7 @@ while ~confirmSelection
     % HIP HT duration
     validDur = false; 
     while ~validDur
-        if strcmp(sampleType,'As‑Built')
+        if strcmp(sampType,'AsBuilt')
             hipDuration = [];
             validDur = true;
         else
@@ -185,21 +191,20 @@ while ~confirmSelection
     end
 
     fprintf('\n--- Your selection ---\n');
-    fprintf('Sample type:     %s\n', sampleType);
-    fprintf('Build paramters: %s\n', buildParams);
+    fprintf('Sample type:     %s\n', sampType);
+    fprintf('Build paramters: %s\n', buildParam);
     fprintf('Build direction: %s\n', buildDirect);
     fprintf('HIP HT duration: %s\n', hipDuration);
 
-    validConfirm = false; % Confirming that these criteria are correct
+    validConfirm = false; % confirming that these criteria are correct
     while ~validConfirm
-        confirmInput = input('Are you happy with these? (yes/no): ', 's');
+        confirmInput = input('\nAre you happy with these? (yes/no): ', 's');
         confirmInput = lower(strtrim(confirmInput));
         
         if ismember(confirmInput, {'yes', 'y', 'correct', 'ok'})
             confirmSelection = true;
             validConfirm = true;
         elseif ismember(confirmInput, {'no', 'n', 'change', 'redo'})
-            fprintf('\nLet''s try this again...\n');
             confirmSelection = false;
             validConfirm = true;
         else
@@ -208,11 +213,19 @@ while ~confirmSelection
     end
 end
 
-selectedFiles = allFileInfo(cellfun(@(x) strcmp(x.sampleType, sampleType), allFileInfo));
-selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.buildParams, buildParams), selectedFiles));
+% finding files that match selection criteria
+selectedFiles = allFileInfo(cellfun(@(x) strcmp(x.sampleType, sampType), allFileInfo));
+selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.buildParams, buildParam), selectedFiles));
 selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.buildDirection, buildDirect), selectedFiles));
-selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.htDurationMin, hipDuration), selectedFiles));
 
+if strcmpi(sampType, 'HIP') && ~isempty(hipDuration)
+    targetDuration = str2double(hipDuration);  % convert '120' → 120
+    selectedFiles = selectedFiles(cellfun(@(x) ...
+        ~isempty(x.htDurationMin) && x.htDurationMin == targetDuration, ...
+        selectedFiles));
+end
+
+% downselection to a single scan can, change things later on
 if ~isempty(selectedFiles)
     fprintf('\n---Matched files---\n');
     for i = 1:length(selectedFiles)
@@ -222,10 +235,11 @@ if ~isempty(selectedFiles)
     scanChoice = '';
     while isempty(scanChoice) || ~isempty(regexp(scanChoice, '\D', 'once'))   % reject text
         scanChoice = input('Select a scan to analysis: ', 's');
-        scanChoice = lower(strtrim(scanChoice));
+        scanChoice = strtrim(scanChoice);
+
         if ~isempty(regexp(scanChoice, '^\d+$', 'once'))
             chosenNum = str2double(scanChoice);
-            idx = [selectedFiles.scanNumber] == chosenNum;
+            idx = cellfun(@(x) x.scanNumber == chosenNum, selectedFiles);
             if any(idx)
                 scanFile = selectedFiles(idx);
                 break;
@@ -235,14 +249,14 @@ if ~isempty(selectedFiles)
             end
         else
             fprintf('Please enter a numeric scan.\n');
-            scanChoice = '';                    % loop again
+            scanChoice = '';                    
         end
     end
 else
-    fprintf('No files match these criteria...')
+    fprintf('No files match these criteria...\n')
 end
 
-
+clearvars -except allFileInfo imgPath scanFile CS csFCC
 %% Tony initial version - create an EBSD variable containing the data
 % ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
 % ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotate to have build direction aligned y-axis
@@ -286,8 +300,8 @@ end
 % save(outname,'ebsd','grains');
 
 %% Data analysis
-% [grains_for_PP, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd,'unitCell'); % strategically have unindexed as phase for post data processing
-% [grains, ebsd.grainId,ebsd2.mis2mean] = calcGrains(ebsd('indexed'),'unitCell');
+% loading in desired .mat file for plotting
+load([scanFile{1}.sampleName, '.mat'])
 
 % Grain orientation spread. 
 gos = grains.GOS./degree;
@@ -391,8 +405,3 @@ figure
 plot(grains_for_PP,grains_for_PP.meanOrientation,'micronbar','off')
 hold on
 plot(defect_grains.boundary,'linewidth',2)
-<<<<<<< HEAD
-hold off
-=======
-hold off
->>>>>>> 9b347aabc59a987e1c3fdb59b807f1d6b922f579
