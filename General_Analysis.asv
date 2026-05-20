@@ -60,7 +60,7 @@ end
 for j = 1:numel(allFileInfo)
     samp_name = allFileInfo{j}.sampleName;
     
-    if strcmpi(samp_name, allMatBases)
+    if any(strcmpi(samp_name, allMatBases))
         fprintf('Data has been processed already for %s. Skipping...\n', allFiles{j});
     else
         fname = [pname filesep allFiles{j}];
@@ -107,7 +107,141 @@ for j = 1:numel(allFileInfo)
     end
 end
 
-% NEEDED >> Add way to select specific sets of data and load in their .mat files
+% Determining which .mat file(s) to load for plotting based on stated criteria
+confirmSelection = false;
+while ~confirmSelection
+    % Sample type
+    validSample = false; 
+    while ~validSample
+        sInput = input('Select a sample type (As‑Built/HIP): ','s');
+        switch lower(strtrim(sInput))
+            case {'as-built','asbuilt','as','built','1'}
+                sampleType = 'As‑Built';
+                validSample = true;
+            case {'hip','heat','heated','2'}
+                sampleType = 'HIP';
+                validSample = true;
+            otherwise
+                fprintf('Please answer "As‑Built" or "HIP".\n');
+        end
+    end
+    % Build parameters
+    validParams = false; 
+    while ~validParams
+        if strcmp(sampleType,'HIP') % update if more are considered
+            buildParams = '900mms 200W';
+            validParams = true;
+        else
+            sInput = input('Select build parameters (400, 900, or 1200mms): ','s');
+            switch lower(strtrim(sInput))
+                case {'400','400mms','1'}
+                    buildParams = '400mms 200W';
+                    validParams = true;
+                case {'900','900mms','2'}
+                    buildParams = '900mms 200W';
+                    validParams = true;
+                case {'1200','1200mms','3'}
+                    buildParams = '1200mms 200W';
+                    validParams = true;
+                otherwise
+                    fprintf('Please answer either "400", "900", or "1200" mms.\n');
+            end
+        end
+    end
+    % Build direction
+    validDirect = false; 
+    while ~validDirect
+        sInput = input('Select build direction (XY/XZ): ','s');
+        switch lower(strtrim(sInput))
+            case {'xy','y','1'}
+                buildDirect = 'XY';
+                validDirect = true;
+            case {'xz','z','2'}
+                buildDirect = 'XZ';
+                validDirect = true;
+            otherwise
+                fprintf('Please answer "XY" or "XZ".\n');
+        end
+    end
+    % HIP HT duration
+    validDur = false; 
+    while ~validDur
+        if strcmp(sampleType,'As‑Built')
+            hipDuration = [];
+            validDur = true;
+        else
+            sInput = input('Select HIP duration (120/180 mins): ','s');
+            switch lower(strtrim(sInput))
+                case {'120','120mins','120 mins','1'}
+                    hipDuration = '120';
+                    validDur = true;
+                case {'180','180mins','180 mins','2'}
+                    hipDuration = '180';
+                    validDur = true;
+                otherwise
+                    fprintf('Please answer "120" or "180" mins.\n');
+            end
+        end
+    end
+
+    fprintf('\n--- Your selection ---\n');
+    fprintf('Sample type:     %s\n', sampleType);
+    fprintf('Build paramters: %s\n', buildParams);
+    fprintf('Build direction: %s\n', buildDirect);
+    fprintf('HIP HT duration: %s\n', hipDuration);
+
+    validConfirm = false; % Confirming that these criteria are correct
+    while ~validConfirm
+        confirmInput = input('Are you happy with these? (yes/no): ', 's');
+        confirmInput = lower(strtrim(confirmInput));
+        
+        if ismember(confirmInput, {'yes', 'y', 'correct', 'ok'})
+            confirmSelection = true;
+            validConfirm = true;
+        elseif ismember(confirmInput, {'no', 'n', 'change', 'redo'})
+            fprintf('\nLet''s try this again...\n');
+            confirmSelection = false;
+            validConfirm = true;
+        else
+            fprintf('Enter yes or no.\n');
+        end
+    end
+end
+
+selectedFiles = allFileInfo(cellfun(@(x) strcmp(x.sampleType, sampleType), allFileInfo));
+selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.buildParams, buildParams), selectedFiles));
+selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.buildDirection, buildDirect), selectedFiles));
+selectedFiles = selectedFiles(cellfun(@(x) strcmp(x.htDurationMin, hipDuration), selectedFiles));
+
+if ~isempty(selectedFiles)
+    fprintf('\n---Matched files---\n');
+    for i = 1:length(selectedFiles)
+        fprintf('%s \n', selectedFiles{i}.sampleName)
+    end
+
+    scanChoice = '';
+    while isempty(scanChoice) || ~isempty(regexp(scanChoice, '\D', 'once'))   % reject text
+        scanChoice = input('Select a scan to analysis: ', 's');
+        scanChoice = lower(strtrim(scanChoice));
+        if ~isempty(regexp(scanChoice, '^\d+$', 'once'))
+            chosenNum = str2double(scanChoice);
+            idx = [selectedFiles.scanNumber] == chosenNum;
+            if any(idx)
+                scanFile = selectedFiles(idx);
+                break;
+            else
+                fprintf('No file with scan %d.  Try again.\n', chosenNum);
+                scanChoice = '';
+            end
+        else
+            fprintf('Please enter a numeric scan.\n');
+            scanChoice = '';                    % loop again
+        end
+    end
+else
+    fprintf('No files match these criteria...')
+end
+
 
 %% Tony initial version - create an EBSD variable containing the data
 % ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
