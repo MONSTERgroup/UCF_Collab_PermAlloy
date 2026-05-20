@@ -20,11 +20,10 @@ addpath(genpath(pname))
 
 angFiles = dir(fullfile(pname,'*.ang'));
 allFiles = {angFiles.name}';
-allAngBases   = cellfun(@(n) erase(n,'.ang'),allFiles,'UniformOutput',false);
 
 matFiles = dir(fullfile(pname,'*.mat'));
 matNames = {matFiles.name}';
-allMatBases = cellfun(@(n) erase(n,'processed.mat'),matNames,'UniformOutput',false);
+allMatBases = cellfun(@(n) erase(n,'.mat'),matNames,'UniformOutput',false);
 
 % storing relevant info for later processing/analysis
 allFileInfo = {};
@@ -58,13 +57,13 @@ for i = 1:length(allFiles)
 end
 
 % initial ebsd processing (only need to do once for each .ang file)
-for j = 1:numel(allAngBases)
-    if ismember(allAngBases{j}, allMatBases)
+for j = 1:numel(allFileInfo)
+    samp_name = allFileInfo{j}.sampleName;
+    
+    if any(strcmpi(samp_name, allMatBases))
         fprintf('Data has been processed already for %s. Skipping...\n', allFiles{j});
     else
         fname = [pname filesep allFiles{j}];
-        samp_name = allFileInfo{j}.sampleName;
-
         ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
         if strcmpi(allFileInfo{j}.buildDirection, 'XZ')
             ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotates build direction to align with y-axis
@@ -107,7 +106,7 @@ for j = 1:numel(allAngBases)
         save(samp_name,'ebsd','grains');
     end
 end
- 
+
 % NEEDED >> Add way to select specific sets of data and load in their .mat files
 
 %% Tony initial version - create an EBSD variable containing the data
