@@ -70,8 +70,9 @@ for j = 1:numel(allFileInfo)
     else
         fname = [pname filesep allFiles{j}];
         ebsd = EBSD.load(fname,csFCC,'interface','ang', 'convertEuler2SpatialReferenceFrame','setting 2'); 
-        if strcmpi(allFileInfo{j}.buildDirection, 'XZ')
-            ebsd = rotate(ebsd,180*degree,'keepEuler'); % rotates build direction to align with y-axis
+        if strcmp(allFileInfo{j}.buildDirection, 'XZ')
+            rot = rotation.byAxisAngle(zvector,90*degree);
+            ebsd = rotate(ebsd,rot,'keepEuler');
         end
         ebsd_raw = ebsd; % making copy, just in case
 
