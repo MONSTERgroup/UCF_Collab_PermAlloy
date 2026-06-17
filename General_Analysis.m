@@ -4,7 +4,7 @@ clear; close all
 % Setting up MTEX related info for plotting
 plotx2east
 setMTEXpref('xAxisDirection','east');
-setMTEXpref('zAxisDirection','intoPlane');
+setMTEXpref('zAxisDirection','intoPlane'); % y would be the BD
 setMTEXpref('FontSize',14);
 
 % crystal symmetry
