@@ -378,21 +378,21 @@ setMTEXpref('pfAnnotations', pfAnnotations);
 pt = 2;
 pos_name = {'ND_Offset', 'Center', 'TD_Offset', 'RD_Offset'};
 
-figure
+figure;
 plotPDF(odf, Miller({1,0,0},CS),'antipodal','projection','eangle');
 plotPDF(odf, Miller({1,0,0},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
 mtexColorMap parula
 setColorRange([0 2])
-mtexColorbar
+%mtexColorbar
 
-figure
+figure;
 plotPDF(odf, Miller({1,1,0},CS),'antipodal','projection','eangle');
 plotPDF(odf, Miller({1,1,0},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
 mtexColorMap parula
 setColorRange([0 2])
-mtexColorbar
+%mtexColorbar
 
-figure
+figure;
 plotPDF(odf, Miller({1,1,1},CS),'antipodal','projection','eangle');
 plotPDF(odf, Miller({1,1,1},CS),'antipodal', 'contour', 0.3:0.3:4, 'linewidth', 1.5, 'linecolor', 'black', 'ShowText', false, 'labelspacing', 300, 'projection','eangle', 'add2all');
 mtexColorMap parula
