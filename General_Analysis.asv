@@ -63,7 +63,7 @@ for i = 1:length(allFiles)
 end
 
 % initial ebsd processing (only need to do once for each .ang file)
-for j = 1:numel(allFileInfo)
+for j = 1%:numel(allFileInfo)
     samp_name = allFileInfo{j}.sampleName;
     
     if any(strcmpi(samp_name, allMatBases))
@@ -109,9 +109,8 @@ for j = 1:numel(allFileInfo)
         export_fig(char(fullfile(imgPath, sprintf('%s %s.png', samp_name, ' EBSD wGBs'))), '-m2'); 
         close
 
-        thisFile = allFileInfo{i};
         % saving processed variables for later
-        save(strcat(samp_name, '_wSubGrains'),'ebsd','grains', 'thisFile');
+        save(strcat(samp_name, '_wSubGrains'),'ebsd','grains');
     end
 end
 
@@ -424,3 +423,42 @@ hold on
 plot(grains.boundary, 'lineWidth', 1.25)
 hold on
 plot(connectedGB, 'lineWidth', 1, 'lineColor','red')
+
+figure('Name', 'Click to remove boundaries');
+plot(ebsd, ebsd.iq)
+colormap gray
+hold on
+
+% Draw boundaries and label them
+for i = 1:length(connectedGB)
+    plot(connectedGB(i), 'lineColor', 'r', 'lineWidth', 1.5)
+    vertices = connectedGB(i).V;
+    centerPt = mean(vertices, 1);
+    text(centerPt(1), centerPt(2), num2str(i), ...
+         'Color', 'yellow', 'FontSize', 10, 'FontWeight', 'bold', ...
+         'HorizontalAlignment', 'center');
+end
+title('Note boundary numbers to remove, then close figure')
+axis tight equal
+
+% Manual input
+fprintf('\nBoundary indices are labeled on the plot.\n');
+removeIdx = input('Enter indices to remove (e.g., [1 5 8 12]): ');
+
+if isempty(removeIdx)
+    subGB = connectedGB;
+else
+    keepBoundary = true(length(connectedGB), 1);
+    keepBoundary(removeIdx) = false;
+    subGB = connectedGB(keepBoundary);
+    
+    fprintf('Removed %d boundaries\n', length(removeIdx));
+end
+
+% Show result
+figure;
+plot(ebsd, ebsd.iq)
+colormap gray
+hold on
+plot(subGB, 'lineColor', 'g', 'lineWidth', 1.5)
+title(sprintf('%d boundaries remaining', length(subGB)))
