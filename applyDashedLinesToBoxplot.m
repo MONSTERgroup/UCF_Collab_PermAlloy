@@ -29,6 +29,8 @@ end
 
 % Determine which files need dashed lines based on group
 applyDashing = true;
+alternatePattern = false;
+
 switch chosenGroup
     case 'allXY'
         applyDashing = false;
@@ -45,6 +47,7 @@ switch chosenGroup
         
     case 'compTopVsCenter'
         % Custom handling for top vs center comparison
+        alternatePattern = true;
         nDashed = floor(numFiles / 2);
         
     otherwise
@@ -67,13 +70,20 @@ if nDashed == 0
     return;
 end
 
+if alternatePattern
+    dashedIndices = 1:2:min(numFiles, length(allBoxes));
+    nDashed = length(dashedIndices);
+else
+    dashedIndices = 1:min(nDashed, length(allBoxes));
+end
+
 % Select elements to make dashed (first nDashed in reversed array)
-dashedBoxes = allBoxes(1:nDashed);
-dashedMedians = allMedians(1:min(nDashed, length(allMedians)));
-dashedUpperWhiskers = allUpperWhiskers(1:min(nDashed, length(allUpperWhiskers)));
-dashedLowerWhiskers = allLowerWhiskers(1:min(nDashed, length(allLowerWhiskers)));
-dashedUpperAdjValues = allUpperAdjValues(1:min(nDashed, length(allUpperAdjValues)));
-dashedLowerAdjValues = allLowerAdjValues(1:min(nDashed, length(allLowerAdjValues)));
+dashedBoxes = allBoxes(dashedIndices);
+dashedMedians = allMedians(dashedIndices(dashedIndices <= length(allMedians)));
+dashedUpperWhiskers = allUpperWhiskers(dashedIndices(dashedIndices <= length(allUpperWhiskers)));
+dashedLowerWhiskers = allLowerWhiskers(dashedIndices(dashedIndices <= length(allLowerWhiskers)));
+dashedUpperAdjValues = allUpperAdjValues(dashedIndices(dashedIndices <= length(allUpperAdjValues)));
+dashedLowerAdjValues = allLowerAdjValues(dashedIndices(dashedIndices <= length(allLowerAdjValues)));
 
 % Apply dashed line style
 set(dashedBoxes, 'LineStyle', ':', 'LineWidth', 2)

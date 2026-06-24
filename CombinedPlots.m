@@ -54,14 +54,14 @@ groupSets.compTopVsCenter = {...
     'As-Built 900mms 200W XZ Scan 2_wSubGrains.mat',...
     'As-Built 900mms 200W XZ top Scan 1_wSubGrains.mat'};
 
-chosenGroup = 'allXY';    % <-- change this string to pick a different group
+chosenGroup = 'compTopVsCenter';    % <-- change this string to pick a different group
 groupToUse = groupSets.(chosenGroup);
 
 %% Running twin analysis and loading in relevant file info for grain analysis
 TwinStats = cell(length(groupToUse), 1);
 allGrainData = cell(length(groupToUse), 1);
 
-plotTwinFigures = false;     % <-- change to plot twin figures or not
+plotTwinFigures = true;     % <-- change to plot twin figures or not
 
 searchPattern_GA = fullfile(dataPath, ['GrainAnalysis_' chosenGroup '.mat']);
 searchPattern_TA = fullfile(dataPath, ['TwinAnalysis_' chosenGroup '.mat']);
@@ -221,12 +221,13 @@ elseif strcmp(chosenGroup, 'onlyAsBuilt')
 elseif strcmp(chosenGroup, 'onlyHIP')
     colorIndices = repmat([4, 5], 1, ceil(numFiles/2));
     colors = defaultColors(colorIndices(1:numFiles), :);
+elseif strcmp(chosenGroup, 'compTopVsCenter')
+    colorIndices = repmat([1, 1, 2, 2], 1, ceil(numFiles));
+    colors = defaultColors(colorIndices(1:numFiles), :);
 else
     colorIndices = repmat(1:5, 1, ceil(numFiles/5));
     colors = defaultColors(colorIndices(1:numFiles), :);
 end
-
-%% Plotting grouped data
 
 % Segmenting file names to get labels for plots
 fullSampleLabels = cell(numFiles,1);
@@ -248,6 +249,19 @@ for labs = 1:numFiles
         shortenLabels{labs} = trimmedName;
     end
 end
+
+MergedGrainsData = cell(numFiles, 1);
+for mg = 1:numFiles
+    mergedGrains_FCC = TwinStats{mg}.mergedGrains('Face Centered Cubic');
+    MergedGrainsData{mg}.mergedGrains_FCC = mergedGrains_FCC;
+    MergedGrainsData{mg}.Mg_ED_FCC = 2*mergedGrains_FCC.equivalentRadius;
+    MergedGrainsData{mg}.Mg_AR_FCC = mergedGrains_FCC.aspectRatio;
+    MergedGrainsData{mg}.Mg_sphericity = mergedGrains_FCC.area ./ mergedGrains_FCC.perimeter('withInclusion') ./ mergedGrains_FCC.equivalentRadius;
+end
+
+save(char(fullfile(dataPath, strcat('MergedGrainsAnalysis_', chosenGroup))),"MergedGrainsData","-v7.3");
+
+%% Plotting grouped data
 
 % Equivalent Diameter - FCC Grains
 allGrainEquDia = [];
@@ -316,17 +330,6 @@ export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'Sphericity_grains', c
 close
 
 %% Grain-based plots with mergedGrains instead
-MergedGrainsData = cell(numFiles, 1);
-
-for mg = 1:numFiles
-    mergedGrains_FCC = TwinStats{mg}.mergedGrains('Face Centered Cubic');
-    MergedGrainsData{mg}.mergedGrains_FCC = mergedGrains_FCC;
-    MergedGrainsData{mg}.Mg_ED_FCC = 2*mergedGrains_FCC.equivalentRadius;
-    MergedGrainsData{mg}.Mg_AR_FCC = mergedGrains_FCC.aspectRatio;
-    MergedGrainsData{mg}.Mg_sphericity = mergedGrains_FCC.area ./ mergedGrains_FCC.perimeter('withInclusion') ./ mergedGrains_FCC.equivalentRadius;
-end
-
-save(char(fullfile(dataPath, strcat('MergedGrainsAnalysis_', chosenGroup))),"MergedGrainsData","-v7.3");
 
 allGrainEquDia = [];
 dataSize_ones = [];
@@ -391,4 +394,270 @@ xticklabels(shortenLabels)
 PrettyPlotsSingle_BoxPlot(colors)
 applyDashedLinesToBoxplot(chosenGroup, numFiles);
 export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'Sphericity_mergedGrains', chosenGroup))), '-m2'); 
+close
+
+%% GOS
+gosData = cell(numFiles, 1);
+fraction = 0.6;
+
+for mg = 1:numFiles
+    gos = MergedGrainsData{mg}.mergedGrains_FCC.GOS ./ degree;
+    numPoints = round(fraction * length(gos));
+    if numPoints > 0
+        Ran_GOS_id = randperm(length(gos), numPoints);
+        gosData{mg} = gos(Ran_GOS_id);
+    else
+        gosData{mg} = [];
+    end
+end
+
+% Create violin plot
+figure('Position', [100 100 1000 800])
+h = daviolinplot(gosData, 'box', 0, ...
+    'boxcolor', 'w', 'scatter', 2, 'jitter', 1, ...
+    'scattersize', 3, 'scatteralpha', 0.7, ...
+    'linkline', 1, 'outliers', 0, ...
+    'xtlabels', shortenLabels);
+
+ax = gca;
+violinPatches = findobj(ax, 'Type', 'patch');
+scatterObjects = findobj(ax, 'Type', 'scatter');
+
+for i = 1:min(numFiles, length(violinPatches))
+    idx = length(violinPatches) - i + 1;  % Reverse indexing
+    set(violinPatches(idx), 'FaceColor', colors(i, :), 'FaceAlpha', 0.8);
+end
+
+for i = 1:min(numFiles, length(scatterObjects))
+    idx = length(scatterObjects) - i + 1;  % Reverse indexing
+    set(scatterObjects(idx), 'CData', colors(i, :), 'MarkerFaceColor', colors(i, :));
+end
+
+ylabel('GOS (°)');
+xlabel('')
+ylim([0 10])
+xl = xlim; 
+xlim([xl(1)-0.1, xl(2)+0.4]);
+
+set(h.sc, 'MarkerEdgeColor', 'none');
+set(gca, 'FontSize', 12);
+set(gca, 'Box', 'on');
+set(gca, 'LineWidth', 2);
+set(gcf, 'Color', 'white');
+
+export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'GOS_mergedGrains', chosenGroup))), '-m2');
+close
+
+%% Sub-grains
+
+% Sub grain density (total length/ebsd area)
+xvals = 1:numFiles;
+subGB_ebsdArea = zeros(numFiles, 1);
+for xv = 1:numFiles
+    subGB_ebsdArea(xv) = allGrainData{xv}.GrainResults.subGBDensity_ebsdArea;
+end
+
+figure('Position', [100 100 1000 800])
+b = bar(xvals, subGB_ebsdArea, 'FaceColor', 'flat', 'FaceAlpha', 0.8);
+
+b.CData = colors;
+ylabel('Subgrain Boundary Density (\mum^{-1})');
+xlabel('')
+%ylim([0 5*10^14])
+set(gca, 'XTick', xvals);
+set(gca, 'XTickLabel', shortenLabels);
+set(gca, 'FontSize', 12);
+set(gca, 'Box', 'on');
+set(gca, 'LineWidth', 2);
+set(gcf, 'Color', 'white');
+
+if ~strcmp(chosenGroup, 'allXY')
+    % Determine which bars to make dashed
+    if strcmp(chosenGroup, 'allXZ')
+        dashedBars = 1:5;
+    elseif strcmp(chosenGroup, 'onlyAsBuilt')
+        dashedBars = 4:6;
+    elseif strcmp(chosenGroup, 'onlyHIP')
+        dashedBars = 3:4;
+    elseif strcmp(chosenGroup, 'compTopVsCenter')
+        dashedBars = 2:2:numFiles;  % Alternating
+    else
+        dashedBars = (ceil(numFiles/2)+1):numFiles;
+    end
+
+    hold on
+    for i = dashedBars
+        % Draw dashed outline
+        barX = b.XData(i);
+        barY = b.YData(i);
+        barWidth = b.BarWidth / 2;
+        
+        % Rectangle coordinates
+        x = [barX-barWidth, barX+barWidth, barX+barWidth, barX-barWidth, barX-barWidth];
+        y = [0, 0, barY, barY, 0];
+        
+        plot(x, y, '--', 'Color', colors(i,:), 'LineWidth', 2);
+    end
+    hold off
+end
+
+export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'SubGB_Density', chosenGroup))), '-m2');
+close
+
+% subGrain length per grain (not merged, but not on edges either)
+subGBPerGrain = cell(numFiles, 1);
+fraction = 1.0;
+
+for mg = 1:numFiles
+    gbLgth = allGrainData{mg}.GrainResults.subGBLengthPerGrain;
+    numPoints = round(fraction * length(gbLgth));
+    if numPoints > 0
+        Ran_id = randperm(length(gbLgth), numPoints);
+        subGBPerGrain{mg} = gbLgth(Ran_id);
+    else
+        subGBPerGrain{mg} = [];
+    end
+end
+
+% Create violin plot
+figure('Position', [100 100 1000 800])
+h = daviolinplot(subGBPerGrain, 'box', 0, ...
+    'boxcolor', 'w', 'scatter', 2, 'jitter', 1, ...
+    'scattersize', 3, 'scatteralpha', 0.7, ...
+    'linkline', 1, 'outliers', 0, ...
+    'xtlabels', shortenLabels);
+
+ax = gca;
+violinPatches = findobj(ax, 'Type', 'patch');
+scatterObjects = findobj(ax, 'Type', 'scatter');
+
+for i = 1:min(numFiles, length(violinPatches))
+    idx = length(violinPatches) - i + 1;  % Reverse indexing
+    set(violinPatches(idx), 'FaceColor', colors(i, :), 'FaceAlpha', 0.8);
+end
+
+for i = 1:min(numFiles, length(scatterObjects))
+    idx = length(scatterObjects) - i + 1;  % Reverse indexing
+    set(scatterObjects(idx), 'CData', colors(i, :), 'MarkerFaceColor', colors(i, :));
+end
+
+ylabel('Subgrain Length per Grain (\mum)');
+xlabel('')
+xl = xlim; 
+xlim([xl(1)-0.1, xl(2)+0.4]);
+
+set(h.sc, 'MarkerEdgeColor', 'none');
+set(gca, 'FontSize', 12);
+set(gca, 'Box', 'on');
+set(gca, 'LineWidth', 2);
+set(gcf, 'Color', 'white');
+
+export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'subGBLengthPerFCCGrain', chosenGroup))), '-m2');
+close
+
+%% Twins
+
+% Twin boundary density (total length/ebsd area)
+xvals = 1:numFiles;
+TB_ebsdArea = zeros(numFiles, 1);
+for xv = 1:numFiles
+    TB_ebsdArea(xv) = TwinStats{xv}.TBDensity_ebsdArea;
+end
+
+figure('Position', [100 100 1000 800])
+b = bar(xvals, TB_ebsdArea, 'FaceColor', 'flat', 'FaceAlpha', 0.8);
+
+b.CData = colors;
+ylabel('Twin Boundary Density (\mum^{-1})');
+xlabel('')
+%ylim([0 2*10^14])
+set(gca, 'XTick', xvals);
+set(gca, 'XTickLabel', shortenLabels);
+set(gca, 'FontSize', 12);
+set(gca, 'Box', 'on');
+set(gca, 'LineWidth', 2);
+set(gcf, 'Color', 'white');
+
+if ~strcmp(chosenGroup, 'allXY')
+    % Determine which bars to make dashed
+    if strcmp(chosenGroup, 'allXZ')
+        dashedBars = 1:5;
+    elseif strcmp(chosenGroup, 'onlyAsBuilt')
+        dashedBars = 4:6;
+    elseif strcmp(chosenGroup, 'onlyHIP')
+        dashedBars = 3:4;
+    elseif strcmp(chosenGroup, 'compTopVsCenter')
+        dashedBars = 2:2:numFiles;  % Alternating
+    else
+        dashedBars = (ceil(numFiles/2)+1):numFiles;
+    end
+
+    hold on
+    for i = dashedBars
+        % Draw dashed outline
+        barX = b.XData(i);
+        barY = b.YData(i);
+        barWidth = b.BarWidth / 2;
+        
+        % Rectangle coordinates
+        x = [barX-barWidth, barX+barWidth, barX+barWidth, barX-barWidth, barX-barWidth];
+        y = [0, 0, barY, barY, 0];
+        
+        plot(x, y, '--', 'Color', colors(i,:), 'LineWidth', 2);
+    end
+    hold off
+end
+
+export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'TB_Density', chosenGroup))), '-m2');
+close
+
+% subGrain length per grain (not merged, but not on edges either)
+TBLPerGrain = cell(numFiles, 1);
+fraction = 1.0;
+
+for mg = 1:numFiles
+    tbLgth = TwinStats{mg}.TBLengthPerGrain;
+    numPoints = round(fraction * length(tbLgth));
+    if numPoints > 0
+        Ran_id = randperm(length(tbLgth), numPoints);
+        TBLPerGrain{mg} = tbLgth(Ran_id);
+    else
+        TBLPerGrain{mg} = [];
+    end
+end
+
+% Create violin plot
+figure('Position', [100 100 1000 800])
+h = daviolinplot(TBLPerGrain, 'box', 0, ...
+    'boxcolor', 'w', 'scatter', 2, 'jitter', 1, ...
+    'scattersize', 3, 'scatteralpha', 0.7, ...
+    'linkline', 1, 'outliers', 0, ...
+    'xtlabels', shortenLabels);
+
+ax = gca;
+violinPatches = findobj(ax, 'Type', 'patch');
+scatterObjects = findobj(ax, 'Type', 'scatter');
+
+for i = 1:min(numFiles, length(violinPatches))
+    idx = length(violinPatches) - i + 1;  % Reverse indexing
+    set(violinPatches(idx), 'FaceColor', colors(i, :), 'FaceAlpha', 0.8);
+end
+
+for i = 1:min(numFiles, length(scatterObjects))
+    idx = length(scatterObjects) - i + 1;  % Reverse indexing
+    set(scatterObjects(idx), 'CData', colors(i, :), 'MarkerFaceColor', colors(i, :));
+end
+
+ylabel('Twin Boundary Length per Grain (\mum)');
+xlabel('')
+xl = xlim; 
+xlim([xl(1)-0.1, xl(2)+0.4]);
+
+set(h.sc, 'MarkerEdgeColor', 'none');
+set(gca, 'FontSize', 12);
+set(gca, 'Box', 'on');
+set(gca, 'LineWidth', 2);
+set(gcf, 'Color', 'white');
+
+export_fig(char(fullfile(comImgPath, sprintf('%s %s.png', 'TBLengthPerFCCGrain', chosenGroup))), '-m2');
 close

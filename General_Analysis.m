@@ -62,7 +62,7 @@ for i = 1:length(allFiles)
     allFileInfo{end+1} = thisFile;
 end
 
-% initial ebsd processing (only need to do once for each .ang file)
+%% initial ebsd processing (only need to do once for each .ang file)
 for j = 1:numel(allFileInfo)
     samp_name = allFileInfo{j}.sampleName;
     
@@ -465,7 +465,7 @@ kam = ebsd_grid.KAM / degree;
 figure;
 plot(ebsd_grid,kam,'micronbar','off')
 setColorRange([0,5])
-mtexColorbar
+mtexColorbar('title',{'degree'})
 mtexColorMap LaboTeX
 hold on
 plot(grains.boundary,'lineWidth',1)
@@ -476,7 +476,7 @@ close
 figure;
 plot(ebsd_grid,ebsd_grid.KAM('threshold',1*degree) ./ degree,'micronbar','off')
 setColorRange([0,1])
-mtexColorbar
+mtexColorbar('title',{'degree'})
 mtexColorMap LaboTeX
 hold on
 plot(grains.boundary,'lineWidth',1)
@@ -521,6 +521,7 @@ gos = grains_FCC.GOS./degree;
 figure;
 plot(grains_FCC,gos,'micronbar','off')
 setColorRange([0 10])
+mtexColorbar('title',{'degree'})
 export_fig(char(fullfile(imgPath, sprintf('%s %s.png', sampleName, ' GOS'))), '-m2'); 
 close
 

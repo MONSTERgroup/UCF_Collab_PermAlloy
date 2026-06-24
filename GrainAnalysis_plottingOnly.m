@@ -1,5 +1,5 @@
 
-for idx = 5:length(matNames)
+for idx = 1:length(matNames)
     selectedMatFile = matNames{idx};
     load(selectedMatFile)
     
